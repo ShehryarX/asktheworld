@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+  <head>
+      <title>World Map - Click to Select Country</title>
+      <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+      <style>
+      </style>
+  </head>
+  <body>
+      <script src="http://cdnjs.cloudflare.com/ajax/libs/d3/3.5.3/d3.min.js"></script>
+      <script src="http://cdnjs.cloudflare.com/ajax/libs/topojson/1.6.9/topojson.min.js"></script>
+      <script src="https://www.gstatic.com/firebasejs/4.13.0/firebase.js"></script>
+      <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+      <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+      <script src="js/datamaps.world.min.js"></script>
+
+      <h1 style="text-align:center">Perspectiable</h1>
+      <div id="container" style="position: relative; width: 100%; height: 100%;"></div>
+
+      <div id="myModal" class="modal fade" role="dialog">
+          <div class="modal-dialog" id="wholeModal">
+              <div class="modal-content">
+                  <div class="modal-header">
+                      <button type="button" class="close" data-dismiss="modal">&times;</button>
+                      <h3 class="modal-title" id="modal-title">Information</h3>
+                  </div>
+                  <div class="modal-body" id="modal-body">
+                      <p>Nothing interesting here.</p>
+                  </div>
+                  <hr>
+                  <h4 style="text-align: center">Ask a question!</h4>
+                  <div class="input-group"><input id="askQuestion" class="form-control width100"> <span class="input-group-btn"> <button class="btn btn-info" onclick="askQ()">Ask</button> </span></div>
+                  <div class="modal-footer">
+                      <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      <div id="questionDetail" class="modal fade" role="dialog">
+          <div class="modal-dialog" id="wholeModal">
+              <div class="modal-content">
+                  <div class="modal-header">
+                      <button type="button" class="close" data-dismiss="modal">&times;</button>
+                      <h3 class="modal-title" id="question-title">Information</h3>
+                  </div>
+                  <div class="modal-body" id="question-body">
+                      <p>Nothing interesting here.</p>
+                  </div>
+                  <div class="modal-footer">
+                      <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      <script>
+          var selectedCountry = '';
+          var dataset = {};
+          var fillColor = "rgba(110, 133, 144, 1)"; // "rgba(156, 189, 205, 1)";
+          var strokeColor = "#FDFDFD"; // "rgb(92, 125, 141)";
+          var defaultFillColor = "rgba(156, 189, 205, 0.5)"; // "rgb(192, 232, 253)";
+          var defaultStrokeColor = "#FDFDFD";
+
+          var config = {
+              apiKey: "AIzaSyBylkhDNDxDrn0-kIXgDsPe3-bEE-Oua7c",
+              authDomain: "doctorapp-7b9ee.firebaseapp.com",
+              databaseURL: "https://doctorapp-7b9ee.firebaseio.com",
+              projectId: "doctorapp-7b9ee",
+              storageBucket: "doctorapp-7b9ee.appspot.com",
+              messagingSenderId: "308953835618"
+          };
+
+          firebase.initializeApp(config);
+          var database = firebase.database();
+
+          var map = new Datamap({
+              element: document.getElementById('container'),
+              fills: {
+                  defaultFill: defaultFillColor // Any hex, color name or rgb/rgba value
+              },
+              projection: 'mercator',
+              data: dataset,
+              responsive: true,
+              done: function(datamap) {
+                  datamap.svg.selectAll('.datamaps-subunit').on('click', function(geography) {
+                      $('#myModal').modal('show');
+                      selectedCountry = geography.properties.name;
+                      document.getElementById('modal-title').innerHTML = 'Questions about ' + geography.properties.name;
+
+                      var questions = [];
+
+                      database.ref('/' + geography.properties.name).on('value', function(_questions) {
+                          questions = _questions.val();
+                          var raw = '';
+                          if (questions != null) {
+                              for (var i = 0; i < questions.length; i++) {
+                                  raw += '<input type="button" onclick="test(' + i + ')" class="btn btn-info" value="' + questions[i].text + '"><br>  ';
+                              }
+                          }
+                          document.getElementById('modal-body').innerHTML = '' + raw;
+                      }, function(err) {
+                          console.log('error');
+                      });
+
+                      var $this = d3.select(this);
+                      var classes = this.getAttribute("class");
+                      if (classes.indexOf("selected") !== -1) {
+                          this.setAttribute("class", classes.replace("selected", "").trim());
+                          delete dataset[geography.id];
+                          $this.style("fill", defaultFillColor);
+                          $this.style("stroke", defaultStrokeColor);
+                          $this.style("stroke-width", "1px");
+                          updatePreviousAttributes($this);
+                      } else {
+                          this.setAttribute("class", classes + " selected");
+                          dataset[geography.id] = {
+                              fillColor: fillColor,
+                              strokeColor: strokeColor
+                          };
+                          $this.style("fill", fillColor);
+                          $this.style("stroke", strokeColor);
+                          $this.style("stroke-width", "1px");
+                          updatePreviousAttributes($this);
+                      }
+
+                      map.updateChoropleth(dataset, {
+                          reset: true
+                      });
+                  });
+              }
+
+          });
+
+          d3.select(window).on('resize', function() {
+              map.resize();
+          });
+
+          function updatePreviousAttributes($this) {
+              var previousAttributes = {
+                  'fill': $this.style('fill'),
+                  'stroke': $this.style('stroke'),
+                  'stroke-width': $this.style('stroke-width'),
+                  'fill-opacity': $this.style('fill-opacity')
+              };
+
+              $this.attr('data-previousAttributes', JSON.stringify(previousAttributes));
+          }
+
+          function test(index) {
+              $('#questionDetail').modal('show');
+              var _index = index;
+
+              database.ref('/' + selectedCountry).on('value', function(_info) {
+                  var info = _info.val();
+
+                  document.getElementById('question-title').innerHTML = info[index].text;
+
+                  var raw_answers = '';
+
+                  if (info[index].answers == undefined) {
+                      document.getElementById('question-body').innerHTML = '<div class="input-group"> <input id="textbox" class="form-control width100"> <span class="input-group-btn"> <button class="btn btn-info" onclick="pushAnswer(' + _index + ')">Answer</button> </span> </div>';
+                      return;
+                  }
+
+                  for (var i = 0; i < info[index].answers.length; i++) {
+                      raw_answers += '<h4>' + info[index].answers[i] + '</h4>';
+                  }
+                  document.getElementById('question-body').innerHTML = raw_answers + '<div class="input-group"> <input id="textbox" class="form-control width100"> <span class="input-group-btn"> <button class="btn btn-info" onclick="pushAnswer(' + _index + ')">Answer</button> </span> </div>';
+              }, function(err) {
+                  console.log('error');
+              });
+          }
+
+          function pushAnswer(index) {
+              database.ref('/' + selectedCountry).once('value', function(_info) {
+                  var info = _info.val();
+
+                  try {
+                      info[index].answers.push(document.getElementById('textbox').value);
+                  } catch (err) {
+                      info[index].answers = [];
+                      info[index].answers.push(document.getElementById('textbox').value);
+                  }
+                  console.log('here', 'index', index);
+                  database.ref('/' + selectedCountry).set(info);
+              }, function(err) {
+                  console.log('error');
+              });
+          }
+
+          function debug() {
+              database.ref('/China').set([{
+                      text: "",
+                      answers: [],
+                  },
+                  {
+                      text: "What the hell is 1 + 1 - 2 * 2 and why?",
+                      answers: ["HEYY!!!!"],
+                  },
+                  {
+                      text: "Honestly what the hell do I do with my shawarma it's bigger than me, and I go to the gym!",
+                      answers: [],
+                  },
+              ]);
+          }
+
+          function askQ() {
+              database.ref('/' + selectedCountry).once('value', function(_info) {
+                  var info = _info.val();
+                  console.log('hello');
+                  if (info == null) info = [];
+                  info.push({
+                      text: document.getElementById('askQuestion').value,
+                      answers: []
+                  });
+                  database.ref('/' + selectedCountry).set(info);
+              }, function(err) {
+                  console.log('error');
+              });
+          }
+      </script>
+  </body>
+</html>
